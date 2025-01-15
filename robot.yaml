@@ -1,0 +1,11 @@
+tasks:
+  # Task names here are used when executing the bots, so we use a human-friendly name
+  Login to e-boekhouden:
+    shell: python -m robocorp.tasks run tasks.py -t login_to_eboekhouden
+
+condaConfigFile: conda.yaml
+artifactsDir: output
+PATH:
+  - .
+PYTHONPATH:
+  - . 

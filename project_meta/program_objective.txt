@@ -1,0 +1,15 @@
+Program Objective
+=================
+
+Primary Objectives
+------------------
+1. Retrieve hour data from a local SQL Server database in JSON format.
+2. Log in to the e-boekhouden website.
+3. Fetch existing hour data for a financial year (default the current year) from e-boekhouden.
+4. Compare the data between the database and e-boekhouden:
+   - Add: Insert new hours present in the database but not in e-boekhouden.
+   - Update: Modify hours in e-boekhouden if they differ from the database.
+   - Delete: Remove hours in e-boekhouden that are not in the database and are not invoiced.
+5. Ensure invoiced hours in e-boekhouden are not modified or deleted.
+6. Log all actions and errors for review.
+7. Execute locally and support scheduling (e.g., cron or Windows Task Scheduler). 

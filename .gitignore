@@ -1,0 +1,43 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+.env/
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# RPA temporary files
+temp/
+
+# Screenshots and error captures
+screenshots/
+*.png
+*.jpg
+*.jpeg
+
+# Output and generated files
+output/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Misc
+.DS_Store
+Thumbs.db

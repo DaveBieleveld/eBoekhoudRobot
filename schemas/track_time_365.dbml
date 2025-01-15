@@ -1,0 +1,21 @@
+Table calendar_events {
+  id integer [primary key, increment]
+  start_time timestamp
+  end_time timestamp
+  name varchar
+  description varchar
+}
+
+Table calendar_categories {
+  id integer [primary key, increment]
+  name varchar
+}
+
+Table calendar_events_categories {
+  event_id integer [ref: > calendar_events.id]
+  category_id integer [ref: > calendar_categories.id]
+  
+  indexes {
+    (event_id, category_id) [unique]
+  }
+}

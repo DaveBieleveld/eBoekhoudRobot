@@ -1,0 +1,85 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "event_id": {
+        "type": "string",
+        "description": "Unique identifier for the event"
+      },
+      "user_email": {
+        "type": "string",
+        "format": "email",
+        "description": "Email of the user associated with the event"
+      },
+      "user_name": {
+        "type": "string",
+        "description": "Name of the user associated with the event"
+      },
+      "subject": {
+        "type": "string",
+        "description": "Subject of the event"
+      },
+      "start_date": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Start date and time of the event"
+      },
+      "end_date": {
+        "type": "string",
+        "format": "date-time",
+        "description": "End date and time of the event"
+      },
+      "description": {
+        "type": "string",
+        "description": "Description of the event, often in HTML format"
+      },
+      "last_modified": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Last modified date and time of the event"
+      },
+      "is_deleted": {
+        "type": "boolean",
+        "description": "Indicates if the event is deleted"
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Creation date and time of the event"
+      },
+      "updated_at": {
+        "type": "string",
+        "format": "date-time",
+        "description": "Last update date and time of the event"
+      },
+       "categories": {
+        "type": "array",
+        "description": "Categories associated with the event",
+         "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name of the category"
+              }
+            },
+            "required": ["name"]
+          }
+      }
+    },
+    "required": [
+      "event_id",
+      "user_email",
+      "user_name",
+      "subject",
+      "start_date",
+      "end_date",
+      "description",
+      "last_modified",
+      "is_deleted",
+      "created_at",
+      "updated_at"
+    ]
+  }
+} 
