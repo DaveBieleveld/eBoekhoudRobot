@@ -7,9 +7,33 @@ Primary Objectives
 2. Log in to the e-boekhouden website.
 3. Fetch existing hour data for a financial year (default the current year) from e-boekhouden.
 4. Compare the data between the database and e-boekhouden:
-   - Add: Insert new hours present in the database but not in e-boekhouden.
-   - Update: Modify hours in e-boekhouden if they differ from the database.
-   - Delete: Remove hours in e-boekhouden that are not in the database and are not invoiced.
-5. Ensure invoiced hours in e-boekhouden are not modified or deleted.
+   4.1. Add: Insert new hours present in the database but not in e-boekhouden.
+   4.2. Update: Modify hours in e-boekhouden if they differ from the database.
+   4.3. Refresh: After all hours have been added, updated or deleted, we'll check if the changes are reflected in e-boekhouden.
+   4.4. Sync Error: 
+      - Orphaned Events: Events in e-boekhouden without event_id that do not exist in the database will be logged. 
+      - Conflict events: Events that exist in both the database and e-boekhouden with matching event_id will be 
+         - updated in e-boekhouden, database is leading.
+         - not updated in e-boekhouden and the database when the event is invoiced.
+            - It will be logged
+      - Conflict e-boekhouden base data 
+         - When one of these dropdowns do not match any of the values we're inserting from the database, log the error to the log file. The dropdowns are:
+            - Employee (medewerker)
+            - Project (project)
+            - Activity (activiteit)
+         - The event cannot be inserted into e-boekhouden if the dropdowns do not match any of the values we're inserting from the database.
+   4.5. Events are identified between the database and e-boekhouden by the event_id.
+      - The event_id is a GUID of an event in the database.
+      - When inserting an event into e-boekhouden, the event_id is stored in the description field (opmerkingen).
+         - It will always be the last line in the description field.
+         - It will be formatted as: "[event_id: <event_id>]"
+            - The event_id is used to identify the event in the database.
+   4.6. Logging any sync error event will be logged in the log file.
+         - It will contain:
+            - All data fields we can fetch from e-boekhouden.
+            - The date of the error.
+            - The error message.
+5. Ensure invoiced hours in e-boekhouden are prohibited from being modified or deleted in either the database or e-boekhouden.
 6. Log all actions and errors for review.
 7. Execute locally and support scheduling (e.g., cron or Windows Task Scheduler). 
+8. The user should be notified of any sync errors or other errors from the log file via email.

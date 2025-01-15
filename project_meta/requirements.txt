@@ -3,4 +3,5 @@ python-dotenv>=1.0.0
 jsonschema>=4.20.0
 pytz>=2023.3.post1
 robocorp>=2.1.2
-robocorp-browser>=2.1.0 
+robocorp-browser>=2.1.0
+pandas>=2.2.0 

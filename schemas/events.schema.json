@@ -30,6 +30,11 @@
         "format": "date-time",
         "description": "End date and time of the event"
       },
+      "hours": {
+        "type": "number",
+        "description": "Duration of the event in hours",
+        "minimum": 0
+      },
       "description": {
         "type": "string",
         "description": "Description of the event, often in HTML format"
@@ -53,33 +58,25 @@
         "format": "date-time",
         "description": "Last update date and time of the event"
       },
-       "categories": {
-        "type": "array",
-        "description": "Categories associated with the event",
-         "items": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string",
-                "description": "Name of the category"
-              }
-            },
-            "required": ["name"]
-          }
+       "project": {
+        "type": "string",
+        "description": "Project associated with the event"
+      },
+      "activity": {
+        "type": "string", 
+        "description": "Activity associated with the event"
       }
     },
     "required": [
-      "event_id",
-      "user_email",
       "user_name",
       "subject",
-      "start_date",
-      "end_date",
       "description",
       "last_modified",
       "is_deleted",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "project",
+      "activity"
     ]
   }
 } 

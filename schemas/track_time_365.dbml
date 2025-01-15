@@ -1,21 +1,39 @@
-Table calendar_events {
-  id integer [primary key, increment]
-  start_time timestamp
-  end_time timestamp
-  name varchar
+Table calendar_event {
+  event_id varchar [primary key]
+  user_email varchar [not null]
+  user_name varchar
+  subject varchar
   description varchar
+  start_date datetime [not null]
+  end_date datetime [not null]
+  last_modified datetime [not null]
+  is_deleted boolean [not null, default: false]
+  created_at datetime [not null, default: `GETDATE()`]
+  updated_at datetime [not null, default: `GETDATE()`]
 }
 
-Table calendar_categories {
-  id integer [primary key, increment]
-  name varchar
+Table calendar_category {
+  category_id integer [primary key, increment]
+  name varchar [not null, unique]
+  is_project boolean [persisted, note: 'CASE WHEN name LIKE \'%[[]PROJECT]%\' THEN 1 ELSE 0 END']
+  is_activity boolean [persisted, note: 'CASE WHEN name LIKE \'%[[]ACTIVITY]%\' THEN 1 ELSE 0 END']
+  created_at datetime [not null, default: `GETDATE()`]
+  updated_at datetime [not null, default: `GETDATE()`]
 }
 
-Table calendar_events_categories {
-  event_id integer [ref: > calendar_events.id]
-  category_id integer [ref: > calendar_categories.id]
+Table calendar_event_calendar_category {
+  event_id varchar [not null, ref: > calendar_event.event_id]
+  category_id integer [not null, ref: > calendar_category.category_id]
+  created_at datetime [not null, default: `GETDATE()`]
+  updated_at datetime [not null, default: `GETDATE()`]
   
   indexes {
-    (event_id, category_id) [unique]
+    (event_id, category_id) [pk]
   }
+}
+
+Indexes {
+  calendar_category_name_index: calendar_category (name)
+  calendar_event_calendar_category_event_id_index: calendar_event_calendar_category (event_id)
+  calendar_event_calendar_category_category_id_index: calendar_event_calendar_category (category_id)
 }

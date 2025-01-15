@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 import os
 from dotenv import load_dotenv
+import time
+import argparse
 
 from get_events import get_events, load_json_schema, validate_events
 from logging_config import setup_logging
@@ -33,23 +35,52 @@ def cleanup_temp_files() -> None:
             except OSError as e:
                 logger.error(f"Error moving {file} to temp directory: {e}")
 
-def save_events(events: List[Dict[str, Any]], timestamp: datetime) -> Path:
+def save_events(events: List[Dict[str, Any]], timestamp: datetime, source: str = "database") -> Path:
     """Save events to a timestamped JSON file.
     
     Args:
         events: List of event dictionaries to save
         timestamp: Timestamp to use in filename
+        source: Source of the events ("database" or "e-boekhouden")
     
     Returns:
         Path to the saved file
     """
-    filename = f"hours_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
+    prefix = "database" if source == "database" else "e-boekhouden"
+    filename = f"{prefix}_events_{timestamp.strftime('%Y%m%d_%H%M%S')}.json"
     output_path = OUTPUT_DIR / filename
     
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(events, f, indent=2, ensure_ascii=False)
     
     return output_path
+
+def download_hours_xls(client: EBoekhoudenClient, year: int) -> tuple[Optional[Path], Optional[list[dict]]]:
+    """Download hours overview as XLS file for the specified year and convert to JSON.
+    
+    Args:
+        client: Authenticated EBoekhoudenClient instance
+        year: Year to download hours for
+        
+    Returns:
+        Tuple of (Path to downloaded file if successful, List of event dictionaries if successful)
+        Returns (None, None) if either operation fails
+    """
+    logger = logging.getLogger(__name__)
+    logger.info(f"Downloading hours XLS for year {year}")
+    
+    try:
+        xls_path, events = client.download_hours_xls(year)
+        if xls_path and events:
+            logger.info(f"Successfully downloaded hours XLS to: {xls_path}")
+            logger.info(f"Successfully parsed {len(events)} events from XLS")
+            return Path(xls_path), events
+        else:
+            logger.error("Failed to download or parse hours XLS")
+            return None, None
+    except Exception as e:
+        logger.error(f"Error downloading/parsing hours XLS: {e}")
+        return None, None
 
 def login_to_eboekhouden() -> Optional[EBoekhoudenClient]:
     """Log into e-boekhouden.nl using credentials from environment variables.
@@ -81,6 +112,11 @@ def main() -> int:
     Returns:
         0 for success, 1 for failure
     """
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Synchronize hours with e-boekhouden.nl')
+    parser.add_argument('--year', type=int, help='Year to synchronize (defaults to current year)')
+    args = parser.parse_args()
+    
     # Load environment variables
     load_dotenv()
     
@@ -96,6 +132,10 @@ def main() -> int:
         start_time = datetime.now(TIMEZONE)
         logger.info(f"Starting application at {start_time.isoformat()}")
         
+        # Use provided year or default to current year
+        target_year = args.year if args.year else start_time.year
+        logger.info(f"Target year for synchronization: {target_year}")
+        
         # Step 1: Retrieve hour data from SQL Server database
         logger.info("Starting data retrieval from SQL Server database...")
         
@@ -107,8 +147,9 @@ def main() -> int:
             return 1
             
         try:
-            # Get events from database
-            events = get_events()
+            # Get events from database for target year
+            events = get_events(target_year)
+            
         except Exception as e:
             logger.error(f"Failed to retrieve events from database: {e}")
             return 1
@@ -128,6 +169,16 @@ def main() -> int:
                 
                 if client:
                     try:
+                        # Download hours XLS for target year
+                        logger.info(f"Attempting to download hours for year {target_year}")
+                        xls_path, events = download_hours_xls(client, target_year)
+                        if xls_path:
+                            logger.info(f"Hours XLS downloaded to: {xls_path}")
+                            # Wait a moment to ensure file is properly saved
+                            time.sleep(2)
+                        else:
+                            logger.warning("Could not download hours XLS")
+                        
                         # TODO: Implement e-boekhouden operations here
                         # - Fetch existing hour data
                         # - Compare with database events

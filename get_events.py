@@ -64,8 +64,12 @@ def get_db_connection(max_retries: int = 3, retry_delay: int = 5) -> pyodbc.Conn
                 db_logger.error(f"Failed to connect to database after {max_retries} attempts: {e}")
                 raise last_error
 
-def get_events() -> list:
-    """Retrieve events from the database using the SQL query."""
+def get_events(year: int) -> list:
+    """Retrieve events from the database for a specific year.
+    
+    Args:
+        year: The year to retrieve events for
+    """
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -74,7 +78,9 @@ def get_events() -> list:
         with open('get_events.sql', 'r') as sql_file:
             sql_query = sql_file.read()
 
-        cursor.execute(sql_query)
+        # Execute query with year parameter
+        params = (year,)
+        cursor.execute(sql_query, params)
         
         # Fetch all rows to handle potential multiple JSON fragments
         rows = cursor.fetchall()
@@ -152,9 +158,12 @@ def main():
         # Load the JSON schema
         schema = load_json_schema('schemas/events.schema.json')
         
+        # Get current year
+        current_year = datetime.now().year
+        
         # Get events from database
-        logger.info("Retrieving events from database...")
-        events = get_events()
+        logger.info(f"Retrieving events for year {current_year} from database...")
+        events = get_events(current_year)
         
         # Validate events against schema
         logger.info("Validating events against schema...")
