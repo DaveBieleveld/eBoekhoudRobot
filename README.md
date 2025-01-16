@@ -15,129 +15,134 @@ An automated RPA (Robotic Process Automation) solution for synchronizing hour da
 6. Comprehensive logging of all actions and errors
 7. Support for local execution and scheduling (cron/Windows Task Scheduler)
 
-## Program Flow
+## Configuration Structure
 
-```plantuml
-@startuml
-|Scheduler|
-start
-:Trigger Sync Process;
+The application uses a hierarchical configuration system based on Pydantic models:
 
-|Database|
-:Query SQL Server
-for Hour Data;
-:Convert to JSON Format;
+1. **Browser Configuration**
+   - Controls Playwright browser behavior
+   - Configures viewport, timeouts, and user agent
+   - Supports headless mode for automated runs
 
-|Validation|
-:Validate JSON Schema;
-if (Valid Data?) then (yes)
-else (no)
-  :Log Error;
-  stop
-endif
+2. **Retry Configuration**
+   - Defines retry behavior for operations
+   - Configures delays between attempts
+   - Separate settings for long-running operations
 
-|e-boekhouden.nl|
-:Login to Platform;
-if (Login Successful?) then (yes)
-  :Fetch Current Year Data;
-else (no)
-  :Log Error;
-  stop
-endif
+3. **Database Configuration**
+   - SQL Server connection settings
+   - Support for Windows Authentication
+   - Configurable through environment variables
 
-|Sync Engine|
-:Compare Data Sets;
-fork
-  :Identify New Hours;
-  :Add New Records;
-fork again
-  :Identify Modified Hours;
-  :Update Records;
-fork again
-  :Identify Deleted Hours;
-  :Check Invoice Status;
-  if (Hour Invoiced?) then (yes)
-    :Preserve Record;
-  else (no)
-    :Delete Record;
-  endif
-end fork
+4. **Logging Configuration**
+   - Log level control (DEBUG to CRITICAL)
+   - File rotation settings
+   - Structured logging with timestamps
 
-|Logger|
-:Log All Operations;
-:Generate Summary;
+5. **E-boekhouden Configuration**
+   - Authentication credentials
+   - API endpoints
+   - Session management
 
-|Scheduler|
-:Mark Process Complete;
-stop
-@enduml
-```
-
-## Technical Features
-
-- Robust error handling and logging
-- Proper timezone management
-- Consistent database operations
-- Secure credential handling
-- Environment-based configuration
-- Comprehensive test coverage
-- Well-documented functionality
-- Detailed operation logging with timestamps
+6. **Directory Configuration**
+   - Output file locations
+   - Temporary file management
+   - Screenshot storage for debugging
 
 ## Prerequisites
 
-- Python (version specified in `conda.yaml`)
+- Python 3.8+
 - SQL Server database
-- e-boekhouden.nl account with API access
-- Required Python packages (listed in `conda.yaml`)
+- e-boekhouden.nl account
+- Required Python packages:
+  - playwright
+  - pydantic
+  - pytz
+  - python-dotenv
+  - pandas (for XLS processing)
 
 ## Installation
 
 1. Clone this repository
-2. Install dependencies using Conda:
+2. Create and activate a Python virtual environment
+3. Install dependencies:
    ```bash
-   conda env create -f conda.yaml
+   pip install -r requirements.txt
    ```
-3. Create a `.env` file with required credentials (see `.env.example` if available)
-
-## Configuration
-
-The project uses environment variables for configuration. Required variables:
-
-- Database connection details
-- e-boekhouden.nl credentials
-- Other configuration parameters (see documentation)
+4. Install Playwright browsers:
+   ```bash
+   playwright install chromium
+   ```
+5. Create a `.env` file with required credentials:
+   ```env
+   DB_SERVER=your_server
+   DB_NAME=your_database
+   DB_USER=your_username
+   DB_PASSWORD=your_password
+   DB_TRUSTED_CONNECTION=yes/no
+   
+   EBOEKHOUDEN_USERNAME=your_username
+   EBOEKHOUDEN_PASSWORD=your_password
+   
+   LOG_LEVEL=INFO
+   ```
 
 ## Usage
 
-Run the main script:
-
+Basic usage:
 ```bash
 python main.py
 ```
 
-For scheduling, configure your system's task scheduler to run the script at desired intervals.
+Specify a target year:
+```bash
+python main.py --year 2024
+```
 
 ## Project Structure
 
-- `src/` - Core source code
-- `schemas/` - Database and validation schemas
-- `docs/` - Documentation
-- `temp/` - Temporary files (ignored by git)
-- `tests/` - Test suite
+```
+eBoekhoudRobot/
+├── src/                    # Core source code
+│   ├── eboekhouden.py     # E-boekhouden automation
+│   └── logging_config.py   # Logging setup
+├── schemas/               # JSON schemas
+│   └── events.schema.json # Event validation schema
+├── docs/                 # Documentation
+├── output/               # Generated files
+├── temp/                 # Temporary files
+├── logs/                 # Log files
+├── config.py            # Configuration system
+├── main.py             # Entry point
+└── requirements.txt    # Dependencies
+```
 
-## Contributing
+## Error Handling
 
-1. Fork the repository
+The application implements comprehensive error handling:
+- Detailed logging of all operations
+- Screenshot capture on failures
+- HTML content preservation for debugging
+- Retry mechanisms for transient failures
+- Graceful cleanup of resources
+
+## Development
+
+For development:
+1. Fork and clone the repository
 2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+3. Install development dependencies
+4. Run tests before committing
+5. Submit pull requests with clear descriptions
 
 ## License
 
-[Specify your license here]
+[MIT License](LICENSE)
 
 ## Support
 
-For support and questions, please [create an issue](link-to-issues) in this repository. 
+For support and questions:
+1. Check the documentation in `docs/`
+2. Review logs in `logs/`
+3. Create an issue in the repository
+4. Include relevant logs and screenshots 

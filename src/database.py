@@ -1,5 +1,5 @@
 from typing import List, Dict, Any
-import pyodbc  # We'll need to add this to conda.yaml
+import pyodbc
 import json
 import logging
 
@@ -14,7 +14,6 @@ class DatabaseClient:
         try:
             with pyodbc.connect(self.connection_string) as conn:
                 cursor = conn.cursor()
-                # You'll need to provide the actual SQL query
                 cursor.execute("""
                     SELECT * FROM your_hours_table 
                     WHERE YEAR(date_column) = YEAR(GETDATE())
@@ -29,6 +28,6 @@ class DatabaseClient:
                 logger.info(f"Retrieved {len(results)} hour records from database")
                 return results
                 
-        except Exception as e:
+        except pyodbc.Error as e:
             logger.error(f"Database error: {str(e)}", exc_info=True)
             raise 

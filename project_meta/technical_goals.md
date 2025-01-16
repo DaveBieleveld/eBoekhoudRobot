@@ -1,5 +1,4 @@
-Technical Goals
-===============
+# Technical Goals
 
 1. Reliability
    - Robust error handling and logging
