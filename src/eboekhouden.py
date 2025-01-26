@@ -6,7 +6,7 @@ from datetime import datetime
 import pytz
 import json
 from src.logging_config import get_logger, log_dict
-from config import config
+from src.config import config
 
 class EBoekhoudenClient:
     def __init__(self):
@@ -168,41 +168,15 @@ class EBoekhoudenClient:
     
     def fetch_hours(self, year: int) -> dict:
         """Fetch hour registrations for a given year."""
-        self.business_logger.info(f"Fetching hours for year {year}")
-        
-        # Navigate to the hours overview page
-        self._page.goto("https://secure20.e-boekhouden.nl/uren/overzicht")
-        self._page.wait_for_load_state('networkidle')
-        
-        # Save initial state for debugging
-        self._save_page_content("initial_overview_state")
-        
         try:
-            # Wait for the main content to be visible
-            content = self._wait_for_main_content()
-            if not content:
+            # Navigate to hours overview
+            if not self._navigate_to_hours_overview():
                 return {}
             
-            # Find and click the year radio button
-            self.browser_logger.info("Looking for year radio button")
-            max_attempts = 60
-            attempt = 0
-            year_radio = None
-            
-            while attempt < max_attempts and not year_radio:
-                try:
-                    year_radio = self._page.locator('input[type="radio"][value="jaar"]').first
-                    if year_radio:
-                        self.browser_logger.info(f"Found year radio button on attempt {attempt + 1}")
-                        year_radio.click()
-                        break
-                except Exception:
-                    pass
-                
-                attempt += 1
-                if attempt < max_attempts:
-                    self.browser_logger.info(f"Year radio button not found, attempt {attempt}/{max_attempts}")
-                    self._page.wait_for_timeout(100)
+            # Find and click year radio button with retry
+            year_radio = self._wait_for_selector('input[type="radio"][value="jaar"]', 
+                                             state='visible',
+                                             timeout=config.retry.delay_ms)
             
             if not year_radio:
                 self.browser_logger.error("Year radio button not found after max attempts")
@@ -215,12 +189,12 @@ class EBoekhoudenClient:
             attempt = 0
             year_select = None
             
-            while attempt < max_attempts and not year_select:
+            while attempt < config.retry.max_attempts and not year_select:
                 try:
                     # Try to find enabled dropdown
                     year_select = self._page.wait_for_selector('select.form-select.rect#input-year:not([disabled])', 
-                                                             state='visible',
-                                                             timeout=100)
+                                                           state='visible',
+                                                           timeout=config.retry.delay_ms)
                     if year_select:
                         self.browser_logger.info(f"Found enabled year dropdown on attempt {attempt + 1}")
                         break
@@ -228,58 +202,15 @@ class EBoekhoudenClient:
                     pass
                 
                 attempt += 1
-                if attempt < max_attempts:
-                    self.browser_logger.info(f"Year dropdown not found or not enabled, attempt {attempt}/{max_attempts}")
-                    self._page.wait_for_timeout(100)
-            
-            if not year_select:
-                self.browser_logger.error("Year dropdown not found or not enabled after max attempts")
-                self._save_page_content("year_dropdown_not_found")
-                self._page.screenshot(path="error_year_dropdown_not_found.png")
-                return {}
-            
-            # The value format is "index: year", so we need to find the right option
-            year_options = year_select.evaluate("""select => {
-                const options = select.options;
-                const values = [];
-                for (let i = 0; i < options.length; i++) {
-                    values.push({
-                        value: options[i].value,
-                        text: options[i].text.trim()
-                    });
-                }
-                return values;
-            }""")
-            
-            target_value = None
-            for option in year_options:
-                if str(year) == option['text'].strip():
-                    target_value = option['value']
-                    break
-            
-            if not target_value:
-                self.browser_logger.error(f"Year {year} not found in dropdown")
-                self._save_page_content("year_not_found")
-                self._page.screenshot(path="error_year_not_found.png")
-                return {}
-            
-            self.browser_logger.info(f"Selecting year value: {target_value}")
-            year_select.select_option(target_value)
-            
-            # Click the "Verder" button to confirm selection
-            if not self._click_verder_button():
-                return {}
-            
-            # Wait for table to be visible
-            table = self._wait_for_table()
-            if not table:
-                return {}
-            
-            # Extract data from table - use a single locator for better performance
+                if attempt < config.retry.max_attempts:
+                    self.browser_logger.info(f"Year dropdown not found or not enabled, attempt {attempt}/{config.retry.max_attempts}")
+                    self._page.wait_for_timeout(config.retry.delay_ms)
+
+            # Extract data from table using configured selectors
             rows = self._page.locator('app-grid table.table-v1 tbody tr')
             
             # Wait a bit for all rows to load
-            self._page.wait_for_timeout(500)
+            self._page.wait_for_timeout(config.browser.default_timeout)
             
             count = rows.count()
             if count == 0:
@@ -288,16 +219,8 @@ class EBoekhoudenClient:
                 
             registrations = []
             
-            # Prepare all cell selectors once
-            cell_selectors = {
-                'date': 'td:nth-child(4)',
-                'employee': 'td:nth-child(5)',
-                'project': 'td:nth-child(6)',
-                'activity': 'td:nth-child(7)',
-                'description': 'td:nth-child(8)',
-                'hours': 'td:nth-child(9)',
-                'kilometers': 'td:nth-child(10)'
-            }
+            # Use configured column selectors
+            cell_selectors = config.eboekhouden.table_columns
             
             # Batch process rows
             for i in range(count):
@@ -415,11 +338,28 @@ class EBoekhoudenClient:
             self._page.screenshot(path=os.path.join("temp", "screenshots", "error_add_hours.png"))
             return False 
 
-    def add_hours_direct(self) -> bool:
-        """Navigate directly to the add hours page using the menu and fill in the hour registration."""
+    def add_hours_direct(self, event: dict) -> bool:
+        """Navigate directly to the add hours page using the menu and fill in the hour registration.
+        
+        Args:
+            event: Dictionary containing event data to use for the registration.
+                  Must contain 'project', 'activity', 'start_date', and 'end_date' fields.
+                  
+        Returns:
+            bool: True if successful, False otherwise.
+            
+        Raises:
+            ValueError: If required fields are missing from the event.
+        """
         self.browser_logger.info("Navigating directly to add hours page")
         
         try:
+            # Validate required fields
+            required_fields = ['project', 'activity', 'start_date', 'end_date', 'subject', 'event_id']
+            for field in required_fields:
+                if field not in event:
+                    raise ValueError(f"Event is missing required '{field}' field")
+            
             # Navigate directly to the add hours page
             self._page.goto("https://secure20.e-boekhouden.nl/uren/overzicht/0")
             self._page.wait_for_load_state('networkidle')
@@ -427,32 +367,46 @@ class EBoekhoudenClient:
             # Wait for form to be visible
             self._page.wait_for_selector('form', state='visible')
             
-            # Fill in the date (2023-01-01)
-            self.browser_logger.info("Filling in date...")
+            # Extract date from start_date
+            start_date = datetime.fromisoformat(event['start_date'].replace('Z', '+00:00'))
+            date_str = start_date.strftime('%d-%m-%Y')
+            
+            # Calculate hours from start and end date
+            end_date = datetime.fromisoformat(event['end_date'].replace('Z', '+00:00'))
+            hours = (end_date - start_date).total_seconds() / 3600
+            
+            # Get project and activity (required)
+            project = event['project']
+            activity = event['activity']
+            
+            # Format description with subject and event_id
+            description = f"{event['subject']}\n[event_id:{event['event_id']}]"
+            
+            # Fill in the date
+            self.browser_logger.info(f"Filling in date: {date_str}")
             date_input = self._page.locator('input#datum')
-            date_input.fill('01-01-2023')
+            date_input.fill(date_str)
             date_input.press('Tab')  # To ensure date is accepted
             
             # Handle all autocomplete fields
             self.browser_logger.info("Selecting employee...")
             self._handle_autocomplete('medewerkerId', 'Dave Bieleveld')
             
-            self.browser_logger.info("Selecting project...")
-            self._handle_autocomplete('projectId', 'Bedrijfsvoering')
+            self.browser_logger.info(f"Selecting project: {project}")
+            self._handle_autocomplete('projectId', project)
             
-            self.browser_logger.info("Selecting activity...")
-            self._handle_autocomplete('activiteitId', 'Intern - Ontwikkelen')
+            self.browser_logger.info(f"Selecting activity: {activity}")
+            self._handle_autocomplete('activiteitId', activity)
             
-            # Fill in hours (8)
-            self.browser_logger.info("Filling in hours...")
+            # Fill in hours
+            self.browser_logger.info(f"Filling in hours: {hours}")
             hours_input = self._page.locator('input#aantalUren')
-            hours_input.fill('8')
+            hours_input.fill(str(hours))
             
-            # Fill in comments with current timestamp
-            self.browser_logger.info("Adding timestamp comment...")
+            # Fill in description with event_id for tracking
+            self.browser_logger.info("Adding description with event_id...")
             comments_input = self._page.locator('textarea#opmerkingen')
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            comments_input.fill(f"Test entry (direct) - Created at: {timestamp}")
+            comments_input.fill(description)
             
             # Click save button
             self.browser_logger.info("Saving entry...")
@@ -465,6 +419,9 @@ class EBoekhoudenClient:
             
             return True
             
+        except ValueError as e:
+            self.browser_logger.error(f"Invalid event data: {str(e)}")
+            return False
         except Exception as e:
             self.browser_logger.error(f"Failed to add hours (direct): {str(e)}")
             self._save_page_content("error_add_hours_direct")
@@ -472,42 +429,23 @@ class EBoekhoudenClient:
             return False 
 
     def download_hours_xls(self, year: int) -> tuple[str, list[dict]]:
-        """Download hours overview as XLS file for a given year and convert to JSON.
+        """Download hours overview as XLS file for the specified year.
         
-        Returns:
-            Tuple of (xls_file_path, list of event dictionaries)
-        """
-        self.browser_logger.info(f"Downloading hours XLS for year {year}")
-        
-        try:
-            # Navigate to hours overview - only wait for domcontentloaded since we'll wait for content after
-            self._page.goto("https://secure20.e-boekhouden.nl/uren/overzicht", wait_until='domcontentloaded')
+        Args:
+            year: The year to download hours for
             
-            # Wait for the main content to be visible
-            content = self._wait_for_main_content()
-            if not content:
+        Returns:
+            Tuple of (path to downloaded file, list of event dictionaries)
+        """
+        try:
+            # Navigate to hours overview
+            if not self._navigate_to_hours_overview():
                 return "", []
             
-            # Find and click the year radio button
-            self.browser_logger.info("Looking for year radio button")
-            max_attempts = 60
-            attempt = 0
-            year_radio = None
-            
-            while attempt < max_attempts and not year_radio:
-                try:
-                    year_radio = self._page.locator('input[type="radio"][value="jaar"]').first
-                    if year_radio:
-                        self.browser_logger.info(f"Found year radio button on attempt {attempt + 1}")
-                        year_radio.click()
-                        break
-                except Exception:
-                    pass
-                
-                attempt += 1
-                if attempt < max_attempts:
-                    self.browser_logger.info(f"Year radio button not found, attempt {attempt}/{max_attempts}")
-                    self._page.wait_for_timeout(100)
+            # Find and click year radio button with retry
+            year_radio = self._wait_for_selector('input[type="radio"][value="jaar"]', 
+                                             state='visible',
+                                             timeout=config.retry.delay_ms)
             
             if not year_radio:
                 self.browser_logger.error("Year radio button not found after max attempts")
@@ -520,12 +458,12 @@ class EBoekhoudenClient:
             attempt = 0
             year_select = None
             
-            while attempt < max_attempts and not year_select:
+            while attempt < config.retry.max_attempts and not year_select:
                 try:
                     # Try to find enabled dropdown
                     year_select = self._page.wait_for_selector('select.form-select.rect#input-year:not([disabled])', 
-                                                             state='visible',
-                                                             timeout=100)
+                                                           state='visible',
+                                                           timeout=config.retry.delay_ms)
                     if year_select:
                         self.browser_logger.info(f"Found enabled year dropdown on attempt {attempt + 1}")
                         break
@@ -533,10 +471,10 @@ class EBoekhoudenClient:
                     pass
                 
                 attempt += 1
-                if attempt < max_attempts:
-                    self.browser_logger.info(f"Year dropdown not found or not enabled, attempt {attempt}/{max_attempts}")
-                    self._page.wait_for_timeout(100)
-            
+                if attempt < config.retry.max_attempts:
+                    self.browser_logger.info(f"Year dropdown not found or not enabled, attempt {attempt}/{config.retry.max_attempts}")
+                    self._page.wait_for_timeout(config.retry.delay_ms)
+                
             if not year_select:
                 self.browser_logger.error("Year dropdown not found or not enabled after max attempts")
                 self._save_page_content("year_dropdown_not_found")
@@ -622,7 +560,7 @@ class EBoekhoudenClient:
                         if attempt < max_attempts:
                             self.browser_logger.info(f"Export button not found, attempt {attempt}/{max_attempts}")
                             self._page.wait_for_timeout(100)  # Wait 500ms before next attempt
-                
+                            
                 if not container:
                     self.browser_logger.error(f"Export button container not found after {max_attempts} attempts")
                     self._save_page_content("export_button_container_not_found")
@@ -661,7 +599,7 @@ class EBoekhoudenClient:
                 else:
                     self.browser_logger.error("Download failed - file not found")
                     return "", []
-                
+                    
         except Exception as e:
             self.browser_logger.error(f"Failed to download XLS: {str(e)}")
             self._save_page_content("error_download_xls")
@@ -714,13 +652,101 @@ class EBoekhoudenClient:
                 except Exception as e:
                     self.browser_logger.warning(f"Failed to parse row: {row.to_dict()} - Error: {str(e)}")
                     continue
-            
+                    
             self.browser_logger.info(f"Successfully parsed {len(events)} events from XLS")
             return events
             
         except Exception as e:
             self.browser_logger.error(f"Failed to parse XLS file: {str(e)}")
-            return [] 
+            return []
+            
+    def events_differ(self, db_event: dict, eb_event: dict) -> bool:
+        """Compare a database event with an e-boekhouden event to determine if they differ.
+        
+        Args:
+            db_event: Event from the database
+            eb_event: Event from e-boekhouden
+            
+        Returns:
+            bool: True if events differ in any significant way, False if they are equivalent
+        """
+        # Fields to compare
+        fields_to_compare = [
+            ("hours", "hours", lambda x, y: abs(float(x) - float(y)) > 0.01),  # Compare hours with small tolerance
+            ("project", "project", lambda x, y: x.strip() != y.strip()),  # Compare projects ignoring whitespace
+            ("activity", "activity", lambda x, y: x.strip() != y.strip()),  # Compare activities ignoring whitespace
+            ("user_name", "user_name", lambda x, y: x.strip() != y.strip()),  # Compare user names ignoring whitespace
+            ("description", "description", lambda x, y: x.strip() != y.strip()),  # Compare descriptions ignoring whitespace
+        ]
+        
+        try:
+            for db_field, eb_field, comparison_func in fields_to_compare:
+                db_value = db_event.get(db_field)
+                eb_value = eb_event.get(eb_field)
+                
+                # If either value is missing when it should exist
+                if db_value is None or eb_value is None:
+                    if db_value is not None or eb_value is not None:  # One exists but not the other
+                        return True
+                    continue  # Both are None, consider equal
+                
+                # Compare values using the comparison function
+                if comparison_func(db_value, eb_value):
+                    return True
+                    
+            return False
+            
+        except Exception as e:
+            self.browser_logger.error(f"Error comparing events: {str(e)}")
+            return True  # Assume difference if comparison fails
+            
+    def get_event_differences(self, db_event: dict, eb_event: dict) -> dict:
+        """Get a detailed comparison of differences between database and e-boekhouden events.
+        
+        Args:
+            db_event: Event from the database
+            eb_event: Event from e-boekhouden
+            
+        Returns:
+            dict: Dictionary containing field-by-field differences
+        """
+        differences = {}
+        
+        # Fields to compare with their display names and comparison functions
+        fields_to_compare = [
+            ("hours", "Hours", lambda x, y: abs(float(x) - float(y)) > 0.01),
+            ("project", "Project", lambda x, y: x.strip() != y.strip()),
+            ("activity", "Activity", lambda x, y: x.strip() != y.strip()),
+            ("user_name", "User", lambda x, y: x.strip() != y.strip()),
+            ("description", "Description", lambda x, y: x.strip() != y.strip()),
+        ]
+        
+        try:
+            for field, display_name, comparison_func in fields_to_compare:
+                db_value = db_event.get(field)
+                eb_value = eb_event.get(field)
+                
+                # Handle missing values
+                if db_value is None or eb_value is None:
+                    if db_value is not None or eb_value is not None:
+                        differences[display_name] = {
+                            "database": db_value,
+                            "e-boekhouden": eb_value
+                        }
+                    continue
+                
+                # Compare values
+                if comparison_func(db_value, eb_value):
+                    differences[display_name] = {
+                        "database": db_value,
+                        "e-boekhouden": eb_value
+                    }
+            
+            return differences
+            
+        except Exception as e:
+            self.browser_logger.error(f"Error getting event differences: {str(e)}")
+            return {"error": str(e)}
 
     def _wait_for_table(self) -> Optional[ElementHandle]:
         """Wait for the table to be visible with retry mechanism."""

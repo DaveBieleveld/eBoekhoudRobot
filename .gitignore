@@ -24,6 +24,10 @@ logs/
 # RPA temporary files
 temp/
 
+# Debug files and directory
+debug/
+*.html
+
 # Screenshots and error captures
 screenshots/
 *.png

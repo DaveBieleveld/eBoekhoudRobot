@@ -1,71 +1,75 @@
+import os
 import logging
 from logging.handlers import RotatingFileHandler
-import os
-from datetime import datetime
+from typing import Dict, Any, Tuple
 import json
-from .config import config
+from src.config import config
 
-# Create logs directory if it doesn't exist
-os.makedirs(config.logging.log_dir, exist_ok=True)
+def setup_logging() -> Tuple[logging.Logger, logging.Logger]:
+    """Set up logging configuration."""
+    # Create required directories if they don't exist
+    os.makedirs('logs', exist_ok=True)
+    os.makedirs(config.directories.output_dir, exist_ok=True)
+    os.makedirs(config.directories.temp_dir, exist_ok=True)
+    os.makedirs(config.directories.screenshots_dir, exist_ok=True)
 
-# Configure component-specific log files
-COMPONENTS = {
-    'browser': {
-        'file': 'browser.log',
-        'level': getattr(logging, config.logging.level)
-    },
-    'network': {
-        'file': 'network.log',
-        'level': getattr(logging, config.logging.level)
-    },
-    'business': {
-        'file': 'business.log',
-        'level': getattr(logging, config.logging.level)
-    }
-}
+    # Common format for all loggers
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-# Common log format for all handlers
-LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+
+    # Configure root logger first
+    root_logger = logging.getLogger()
+    root_logger.setLevel(os.getenv('LOG_LEVEL', 'INFO'))
+    # Clear any existing handlers
+    root_logger.handlers.clear()
+    root_logger.addHandler(console_handler)
+
+    # Main application logger
+    app_handler = RotatingFileHandler(
+        'logs/app.log',
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=5
+    )
+    app_handler.setFormatter(formatter)
+    app_logger = logging.getLogger('app')
+    app_logger.handlers.clear()
+    app_logger.addHandler(app_handler)
+    app_logger.propagate = False  # Prevent propagation to root logger
+
+    # Database operations logger
+    db_handler = RotatingFileHandler(
+        'logs/database.log',
+        maxBytes=10*1024*1024,
+        backupCount=5
+    )
+    db_handler.setFormatter(formatter)
+    db_logger = logging.getLogger('database')
+    db_logger.handlers.clear()
+    db_logger.addHandler(db_handler)
+    db_logger.propagate = False
+
+    # Error logger (separate file for errors)
+    error_handler = RotatingFileHandler(
+        'logs/error.log',
+        maxBytes=10*1024*1024,
+        backupCount=5
+    )
+    error_handler.setFormatter(formatter)
+    error_handler.setLevel(logging.ERROR)
+    error_logger = logging.getLogger('error')
+    error_logger.handlers.clear()
+    error_logger.addHandler(error_handler)
+    error_logger.propagate = False  # Prevent propagation to root logger
+
+    return root_logger, db_logger
 
 def get_logger(component: str) -> logging.Logger:
-    """Get a logger for a specific component with rotating file handler."""
-    if component not in COMPONENTS:
-        raise ValueError(f"Unknown component: {component}. Must be one of {list(COMPONENTS.keys())}")
+    """Get a logger for a specific component."""
+    return logging.getLogger(component)
 
-    logger = logging.getLogger(f"eboekhouden.{component}")
-    
-    # Only add handlers if they haven't been added yet
-    if not logger.handlers:
-        logger.setLevel(COMPONENTS[component]['level'])
-        
-        # Create rotating file handler
-        log_file = os.path.join(config.logging.log_dir, COMPONENTS[component]['file'])
-        file_handler = RotatingFileHandler(
-            log_file,
-            maxBytes=config.logging.max_bytes,
-            backupCount=config.logging.backup_count,
-            encoding='utf-8'
-        )
-        
-        # Create formatter and add it to the handler
-        formatter = logging.Formatter(LOG_FORMAT, DATE_FORMAT)
-        file_handler.setFormatter(formatter)
-        
-        # Add handler to logger
-        logger.addHandler(file_handler)
-        
-        # Also add a stream handler for console output in development
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        logger.addHandler(console_handler)
-    
-    return logger
-
-def log_dict(logger: logging.Logger, level: int, message: str, data: dict):
-    """Log a dictionary as formatted JSON with a message."""
-    logger.log(level, f"{message}\n{json.dumps(data, indent=2, ensure_ascii=False)}")
-
-# Initialize all component loggers at module import
-for component in COMPONENTS:
-    get_logger(component) 
+def log_dict(logger: logging.Logger, level: int, message: str, data: Dict[str, Any]) -> None:
+    """Log a dictionary with proper formatting."""
+    logger.log(level, f"{message}: {json.dumps(data, indent=2)}") 

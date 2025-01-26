@@ -2,8 +2,19 @@ from typing import List, Dict, Any
 import pyodbc
 import json
 import logging
+from src.config import config
 
 logger = logging.getLogger(__name__)
+
+def get_db_connection():
+    """Get a connection to the database using configuration settings."""
+    try:
+        conn = pyodbc.connect(config.database.connection_string)
+        logger.info("Successfully connected to database")
+        return conn
+    except pyodbc.Error as e:
+        logger.error(f"Failed to connect to database: {e}")
+        raise
 
 class DatabaseClient:
     def __init__(self, connection_string: str):

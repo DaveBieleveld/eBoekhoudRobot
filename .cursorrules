@@ -1,0 +1,123 @@
+# Additionally
+
+* you're a master python developer and can help me with any python code.
+* you're a master sql developer and can help me with any sql code.
+* you're a master git developer and can help me with any git code.
+* you're a master azure developer and can help me with any azure code.
+
+We are in a Windows envirnoment, so use PowerShell
+
+# Need to know
+
+1. e-boekhouden.nl is a Dutch accounting software.
+2. e-boekhouden.nl is mostly likely using Angular.
+3. we use powershell as terminal.
+
+# Mermaid Rules
+
+1. Use mermaid to create diagrams.
+2. Use mermaid to create flowcharts.
+3. Use mermaid to create diagrams.
+
+const colorSystem = {
+  // Primary Colors
+  primary: {
+    main: '#2b4c7e',      // System processes - Deep Navy
+    light: '#4a6a9c',     // Lighter variant
+    dark: '#1c3150',      // Darker variant
+    text: '#ffffff'       // Text on primary
+  },
+  
+  // Secondary Colors
+  secondary: {
+    main: '#88498f',      // User interactions - Warm Purple
+    light: '#a66dad',     // Lighter variant
+    dark: '#663369',      // Darker variant
+    text: '#ffffff'       // Text on secondary
+  },
+  
+  // Tertiary Colors
+  tertiary: {
+    main: '#3a7d44',      // Vendor activities - Rich Green
+    light: '#589962',     // Lighter variant
+    dark: '#2a5c32',      // Darker variant
+    text: '#ffffff'       // Text on tertiary
+  },
+  
+  // Status Colors
+  status: {
+    error: {
+      main: '#963d32',    // Configuration - Warm Red
+      light: '#b45a4f',   // Lighter variant
+      dark: '#6f2d25'     // Darker variant
+    },
+    warning: {
+      main: '#c17f16',    // Alerts - Warm Orange
+      light: '#d69a3f',   // Lighter variant
+      dark: '#8f5e10'     // Darker variant
+    },
+    success: '#3a7d44',   // Success states
+    info: '#2b4c7e'       // Information states
+  },
+  
+  // Neutral Colors
+  neutral: {
+    white: '#ffffff',
+    background: '#f5f5f5',
+    border: '#e0e0e0',
+    text: {
+      primary: '#333333',
+      secondary: '#666666',
+      disabled: '#999999'
+    }
+  }
+}
+
+# Web Automation Debugging Rules
+
+When debugging web automation issues, especially with frames and dynamic content, follow these guidelines:
+
+1. Debug Output Organization:
+   * Create a dedicated debug directory (e.g., 'debug/')
+   * Implement automatic cleanup of debug files older than 24 hours
+   * Use consistent naming patterns: `{action_name}_{frame_type}.{extension}`
+   * Store all debug artifacts (HTML, screenshots, logs) in this directory
+
+2. Page State Capture:
+   * Save full page HTML at critical points
+   * Take screenshots for visual verification
+   * For each frame:
+     - Save frame URL and content
+     - Use meaningful names (e.g., 'login_frame', 'main_frame')
+   * Log all actions and their results
+
+3. Frame Navigation Strategy:
+   * Wait for page load state ('networkidle')
+   * List and inspect all frames
+   * Use frame URLs to identify correct frames
+   * Verify presence of expected elements before interaction
+   * Handle nested iframes properly:
+     - Check outer frame first
+     - Navigate to inner frames
+     - Verify frame content before interaction
+
+4. Error Handling:
+   * Save debug information before raising exceptions
+   * Capture both success and failure states
+   * Include detailed error messages in logs
+   * Clean up resources even if errors occur
+
+5. Logging Best Practices:
+   * Use separate loggers for different concerns:
+     - browser: for browser/automation actions
+     - network: for HTTP/network operations
+     - business: for business logic
+   * Log both successful and failed actions
+   * Include timestamps in debug artifacts
+   * Use appropriate log levels:
+     - INFO: normal flow
+     - ERROR: issues and failures
+     - WARNING: potential problems
+     - DEBUG: detailed troubleshooting
+
+This systematic approach ensures effective debugging of web automation while maintaining clean and organized debug outputs.
